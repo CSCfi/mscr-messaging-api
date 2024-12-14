@@ -45,12 +45,7 @@ public class ContainerNameServiceImpl implements ContainerNameService {
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Europe/Helsinki")
     public void refreshPrefLabels() {
-        fetchAndCachePrefLabelsForContainers(APPLICATION_CODELIST);
-        if (!"awsdev".equals(messagingServiceProperties.getEnv())) {
-            fetchAndCachePrefLabelsForContainers(APPLICATION_DATAMODEL);
-        }
-        fetchAndCachePrefLabelsForContainers(APPLICATION_TERMINOLOGY);
-        fetchAndCachePrefLabelsForContainers(APPLICATION_COMMENTS);
+        fetchAndCachePrefLabelsForContainers(APPLICATION_DATAMODEL);
     }
 
     public void addPrefLabel(final IntegrationResourceDTO integrationResource) {

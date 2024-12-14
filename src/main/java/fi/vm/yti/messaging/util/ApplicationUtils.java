@@ -18,6 +18,10 @@ public interface ApplicationUtils {
     String TYPE_LIBRARY = "library";
 
     String TYPE_PROFILE = "profile";
+    
+    String TYPE_SCHEMA = "schema";
+    
+    String TYPE_CROSSWALK = "crosswalk";
 
     String TYPE_TERMINOLOGY = "terminology";
 
@@ -27,16 +31,11 @@ public interface ApplicationUtils {
 
     static String getApplicationByType(final String type) {
         switch (type) {
-            case TYPE_CODELIST:
-                return APPLICATION_CODELIST;
             case TYPE_LIBRARY:
             case TYPE_PROFILE:
+            case TYPE_SCHEMA:
+            case TYPE_CROSSWALK:
                 return APPLICATION_DATAMODEL;
-            case TYPE_TERMINOLOGY:
-                return APPLICATION_TERMINOLOGY;
-            case TYPE_COMMENTROUND:
-            case TYPE_COMMENTTHREAD:
-                return APPLICATION_COMMENTS;
             default:
                 throw new YtiMessagingException(new ErrorModel(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Unknown type in resource: " + type));
         }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -128,17 +129,8 @@ public class NotificationServiceImpl implements NotificationService {
                 final String resourceUri = resource.getUri();
                 if (updatedResourcesMap.keySet().contains(resourceUri)) {
                     switch (resource.getApplication()) {
-                        case APPLICATION_CODELIST:
-                            codeListUpdates.add(updatedResourcesMap.get(resourceUri));
-                            break;
                         case APPLICATION_DATAMODEL:
                             dataModelUpdates.add(updatedResourcesMap.get(resourceUri));
-                            break;
-                        case APPLICATION_TERMINOLOGY:
-                            terminologyUpdates.add(updatedResourcesMap.get(resourceUri));
-                            break;
-                        case APPLICATION_COMMENTS:
-                            commentsUpdates.add(updatedResourcesMap.get(resourceUri));
                             break;
                         default:
                             LOG.info("Unknown application type: " + resource.getApplication());
@@ -171,71 +163,44 @@ public class NotificationServiceImpl implements NotificationService {
     private String constructMessage(final UserNotificationDTO userNotificationDto) {
         final StringBuilder builder = new StringBuilder();
         builder.append("<body>");
-        builder.append("Hyvä käyttäjä,<br/>");
+        builder.append("Dear MSCR user,<br/>");
         builder.append("<br/>");
-        builder.append("Saat tämän viestin, koska olet tilannut muutosviestit Yhteentoimivuusalustalta yhdestä tai useammasta sisällöstä. Voit perua tilauksen työkaluista Käyttäjätiedot-osiossa. Katso ohjeet <a href=\"https://vrk-ewiki.eden.csc.fi/pages/viewpage.action?pageId=61252403\">täältä</a>.");
+        builder.append("This is your summary of the changes to MSCR content that you have subscribed to.</a>.");
         builder.append("<br/>");
-        final List<IntegrationResourceDTO> terminologyUpdates = userNotificationDto.getTerminologyResources();
-        final List<IntegrationResourceDTO> codelistUpdates = userNotificationDto.getCodelistResources();
         final List<IntegrationResourceDTO> datamodelUpdates = userNotificationDto.getDatamodelResouces();
-        final List<IntegrationResourceDTO> commentsUpdates = userNotificationDto.getCommentsResources();
-        if (!terminologyUpdates.isEmpty()) {
-            builder.append("<h3>Sanastot</h3>");
-            addContainerUpdates(APPLICATION_TERMINOLOGY, builder, terminologyUpdates);
-        }
-        if (!codelistUpdates.isEmpty()) {
-            builder.append("<h3>Koodistot</h3>");
-            addContainerUpdates(APPLICATION_CODELIST, builder, codelistUpdates);
-        }
         if (!datamodelUpdates.isEmpty()) {
-            builder.append("<h3>Tietomallit</h3>");
-            addContainerUpdates(APPLICATION_DATAMODEL, builder, datamodelUpdates);
-        }
-        if (!commentsUpdates.isEmpty()) {
-            builder.append("<h3>Kommentit</h3>");
-            addContainerUpdates(APPLICATION_COMMENTS, builder, commentsUpdates);
+        	
+            builder.append("<h3>Schemas</h3>");
+            builder.append("<ul>");
+            addContainerUpdates(APPLICATION_DATAMODEL, builder, datamodelUpdates, "schema");
+            builder.append("</ul>");
+            builder.append("<h3>Crosswalks</h3>");
+            builder.append("<ul>");
+            addContainerUpdates(APPLICATION_DATAMODEL, builder, datamodelUpdates, "crosswalk");
+            builder.append("</ul>");
+            
         }
         builder.append("<br/>");
         builder.append("<br/>");
-        builder.append("Tämä viesti on lähetetty automaattisesti. Ethän vastaa viestiin!");
+        builder.append("This is an automatically generated message. Please, do not reply to this message.");
         builder.append("</body>");
         return builder.toString();
     }
 
     private void addContainerUpdates(final String applicationIdentifier,
                                      final StringBuilder builder,
-                                     final List<IntegrationResourceDTO> resources) {
-        resources.forEach(resource -> {
-            final IntegrationResponseDTO subResourceResponse = resource.getSubResourceResponse();
-            addResourceToBuilder(false, applicationIdentifier, builder, resource);
-            if (subResourceResponse != null) {
-                final List<IntegrationResourceDTO> subResources = subResourceResponse.getResults();
-                if (subResources != null && !subResources.isEmpty()) {
-                    final Set<IntegrationResourceDTO> subResourcesNew = new LinkedHashSet<>();
-                    final Set<IntegrationResourceDTO> subResourcesWithStatusChanges = new LinkedHashSet<>();
-                    final Set<IntegrationResourceDTO> subResourcesWithContentChanges = new LinkedHashSet<>();
-                    subResources.forEach(subResource -> {
-                        final boolean isNew = isResourceNew(subResource);
-                        final Date statusModified = subResource.getStatusModified();
-                        final Date statusModifiedComparisonDate = createAfterDateForModifiedComparison();
-                        if (isNew) {
-                            subResourcesNew.add(subResource);
-                        } else if (statusModified != null && (statusModified.after(statusModifiedComparisonDate) || statusModified.equals(statusModifiedComparisonDate))) {
-                            subResourcesWithStatusChanges.add(subResource);
-                        } else {
-                            subResourcesWithContentChanges.add(subResource);
-                        }
-                    });
-                    addSubResourcesThatAreNew(applicationIdentifier, builder, subResourcesNew);
-                    addSubResourcesWithStatusChanges(applicationIdentifier, builder, subResourcesWithStatusChanges);
-                    addSubResourcesWithContentChanges(applicationIdentifier, builder, subResourcesWithContentChanges);
-                    final Meta meta = subResourceResponse.getMeta();
-                    if (meta != null && meta.getTotalResults() > RESOURCES_PAGE_SIZE) {
-                        appendTotalSubResources(builder, meta.getTotalResults());
-                    }
-                }
-            }
-            builder.append("</ul>");
+                                     final List<IntegrationResourceDTO> resources,
+                                     final String resourceType) {
+        resources.stream().filter(new Predicate<IntegrationResourceDTO>() {
+
+			@Override
+			public boolean test(IntegrationResourceDTO t) {
+				return t.getType().equalsIgnoreCase(resourceType);
+			}
+		}).forEach(resource -> {
+			
+            addResourceToBuilder(true, applicationIdentifier, builder, resource);
+            
         });
     }
 
@@ -334,9 +299,7 @@ public class NotificationServiceImpl implements NotificationService {
         final String prefLabel = getPrefLabelValueForEmail(resource.getPrefLabel());
         final String localName = resource.getLocalName();
         final String resourceUri = resource.getUri();
-        if (wrapToList) {
-            builder.append("<li>");
-        }
+        builder.append("<li>");
         builder.append("<a href=");
         builder.append(encodeAndEmbedEnvironmentToUri(resourceUri));
         builder.append(">");
@@ -348,31 +311,17 @@ public class NotificationServiceImpl implements NotificationService {
             builder.append(resourceUri);
         }
         builder.append("</a>");
-        final Date modifiedComparisonDate = createAfterDateForModifiedComparison();
         final String status = resource.getStatus();
         if (status != null) {
-            builder.append(": " + localizeStatus(status));
+            builder.append(": " + status);
         }
-        final String type = resource.getType();
-        if (isContainerType(type)) {
-            builder.append("<ul>");
-            final Date modified = resource.getModified();
-            final Date statusModified = resource.getStatusModified();
-            if (statusModified != null && (statusModified.after(modifiedComparisonDate) || statusModified.equals(modifiedComparisonDate))) {
-                appendInformationChanged(builder, type, true);
-            } else if (modified != null && (modified.after(modifiedComparisonDate) || modified.equals(modifiedComparisonDate))) {
-                appendInformationChanged(builder, type, false);
-            }
-        } else if (APPLICATION_COMMENTS.equalsIgnoreCase(applicationIdentifier) && TYPE_COMMENTTHREAD.equalsIgnoreCase(type)) {
-            final Date contentModified = resource.getContentModified();
-            final Date contentModifiedComparisonDate = createAfterDateForModifiedComparison();
-            if (contentModified != null && (contentModified.after(contentModifiedComparisonDate) || contentModified.equals(contentModifiedComparisonDate))) {
-                builder.append(" tietosisältöön on tullut uusia kommentteja");
-            }
+        builder.append(" - ");
+        List<String> reasons = new ArrayList<String>();
+        for(String reasonCode : resource.getReasonCodes()) {
+        	reasons.add(getReasonString(reasonCode));
         }
-        if (wrapToList) {
-            builder.append("</li>");
-        }
+        builder.append(String.join("/", reasons));
+        builder.append("</li>");
     }
 
     private boolean isContainerType(final String type) {
@@ -424,6 +373,26 @@ public class NotificationServiceImpl implements NotificationService {
                 return status;
         }
     }
+    
+    private String getReasonString(String code) {
+    	switch (code) {
+		case "1":
+			return "Content changed";
+		case "2":
+			return "Status changed";
+		case "3":
+			return "Source schema content changed";
+		case "4":
+			return "Target schema content changed";
+		case "5":
+			return "Source schema has new revision";
+		case "6":
+			return "Target schema has new revision";
+
+		default:
+			return "";
+		}
+    }
 
     private String encodeAndEmbedEnvironmentToUri(final String uri) {
         final String env = messagingServiceProperties.getEnv();
@@ -441,12 +410,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private List<IntegrationResourceDTO> getUpdatedContainersForAllApplications(final UUID userId) {
         final List<IntegrationResourceDTO> updatedResources = new ArrayList<>();
-        addUpdatedContainersForApplication(APPLICATION_CODELIST, updatedResources, userId);
-        if (!"awsdev".equals(messagingServiceProperties.getEnv())) {
-            addUpdatedContainersForApplication(APPLICATION_DATAMODEL, updatedResources, userId);
-        }
-        addUpdatedContainersForApplication(APPLICATION_TERMINOLOGY, updatedResources, userId);
-        addUpdatedContainersForApplication(APPLICATION_COMMENTS, updatedResources, userId);
+        addUpdatedContainersForApplication(APPLICATION_DATAMODEL, updatedResources, userId);
         return updatedResources;
     }
 
@@ -491,19 +455,20 @@ public class NotificationServiceImpl implements NotificationService {
                                                                                  final Set<String> containerUris,
                                                                                  final boolean getLatest) {
         LOG.info("Fetching containers for: " + applicationIdentifier);
-        final boolean fetchDateRangeChanges = !applicationIdentifier.equalsIgnoreCase(APPLICATION_TERMINOLOGY);
+        final boolean fetchDateRangeChanges = true;
         if (containerUris != null && !containerUris.isEmpty()) {
             final IntegrationResponseDTO integrationResponse = integrationService.getIntegrationContainers(applicationIdentifier, containerUris, fetchDateRangeChanges, getLatest);
             final List<IntegrationResourceDTO> containers = integrationResponse.getResults();
             if (containers != null && !containers.isEmpty()) {
                 LOG.info("Found " + containers.size() + " for application: " + applicationIdentifier);
                 // TODO: Remove container filtering once Terminology adds support for contentModified timestamping
+                /*
                 final Set<IntegrationResourceDTO> containersToFilter = new HashSet<>();
                 containers.forEach(container -> {
                     final Date contentModified = container.getContentModified();
                     final Date contentModifiedComparisonDate = createAfterDateForModifiedComparison();
                     final IntegrationResponseDTO integrationResponseForResources;
-                    if (applicationIdentifier.equalsIgnoreCase(APPLICATION_TERMINOLOGY) || (contentModified != null && (contentModified.after(contentModifiedComparisonDate) || contentModified.equals(contentModifiedComparisonDate)))) {
+                    if ((contentModified != null && (contentModified.after(contentModifiedComparisonDate) || contentModified.equals(contentModifiedComparisonDate)))) {
                         LOG.info("Container: " + container.getUri() + " has content that has been modified lately, fetching resources.");
                         integrationResponseForResources = integrationService.getIntegrationResources(applicationIdentifier, container.getUri(), true, getLatest);
                         LOG.info("Resources for " + applicationIdentifier + " have " + integrationResponseForResources.getResults().size() + " updates.");
@@ -515,6 +480,7 @@ public class NotificationServiceImpl implements NotificationService {
                     }
                 });
                 containers.removeAll(containersToFilter);
+                */
                 return containers;
             } else {
                 LOG.info("No containers have updates for " + applicationIdentifier);

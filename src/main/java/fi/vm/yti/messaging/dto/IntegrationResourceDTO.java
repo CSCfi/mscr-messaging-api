@@ -32,13 +32,25 @@ public class IntegrationResourceDTO implements Serializable, Comparable<Integrat
     private Date contentModified;
     private String type;
     private IntegrationResponseDTO subResourceResponse;
+    private String[] reasonCodes;
 
     public IntegrationResourceDTO() {
         prefLabel = new HashMap<>();
         description = new HashMap<>();
     }
 
-    public String getUri() {
+    
+    public String[] getReasonCodes() {
+		return reasonCodes;
+	}
+
+
+	public void setReasonCodes(String[] reasonCodes) {
+		this.reasonCodes = reasonCodes;
+	}
+
+
+	public String getUri() {
         return uri;
     }
 

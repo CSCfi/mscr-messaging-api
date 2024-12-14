@@ -46,8 +46,9 @@ import static org.assertj.core.util.DateUtil.yesterday;
 public class IntegrationServiceImpl implements IntegrationService {
 
     private static final Logger LOG = LoggerFactory.getLogger(IntegrationServiceImpl.class);
-    private static final String DATE_SUFFIX = "T07:00:00.000+0200";
+    private static final String DATE_SUFFIX = "T23:00:00Z";
     private static final String LANGUAGE_CODE_FI = "fi";
+    private static final String LANGUAGE_CODE_EN = "en";
 
     private final CodelistProperties codelistProperties;
     private final DataModelProperties dataModelProperties;
@@ -76,7 +77,7 @@ public class IntegrationServiceImpl implements IntegrationService {
                                                            final Set<String> containerUris,
                                                            final boolean fetchDateRangeChanges,
                                                            final boolean getLatest) {
-        final String requestUrl = resolveIntegrationContainersRequestUrl(applicationIdentifier);
+        final String requestUrl = resolveIntegrationContainersRequestUrl(applicationIdentifier, fetchDateRangeChanges);
         LOG.info("Fetching integration containers from: " + requestUrl);
         final String requestBody = createContainerRequestBody(containerUris, fetchDateRangeChanges, getLatest);
         LOG.info("Fetching integration containers body: " + requestBody);
@@ -178,10 +179,7 @@ public class IntegrationServiceImpl implements IntegrationService {
             containerUris.add(container);
             integrationResourceRequest.setContainer(containerUris);
         }
-        if (applicationIdentifier.equalsIgnoreCase(APPLICATION_CODELIST)) {
-            integrationResourceRequest.setType(TYPE_CODE);
-        }
-        integrationResourceRequest.setLanguage(LANGUAGE_CODE_FI);
+        integrationResourceRequest.setLanguage(LANGUAGE_CODE_EN);
         integrationResourceRequest.setPageFrom(0);
         integrationResourceRequest.setPageSize(RESOURCES_PAGE_SIZE);
         try {
@@ -193,9 +191,9 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     private void setAfterAndBefore(final IntegrationResourceRequestDTO integrationResourceRequestDto,
                                    final boolean getLatest) {
-        final TimeZone tz = TimeZone.getTimeZone("Europe/Helsinki");
+        //final TimeZone tz = TimeZone.getTimeZone("Europe/Helsinki");
         final DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        df.setTimeZone(tz);
+        //df.setTimeZone(tz);
         final String after = df.format(yesterday()) + DATE_SUFFIX;
         integrationResourceRequestDto.setAfter(after);
         if (!getLatest) {
@@ -207,14 +205,8 @@ public class IntegrationServiceImpl implements IntegrationService {
     private String resolveIntegrationRequestUrl(final String applicationIdentifier,
                                                 final String endPoint) {
         switch (applicationIdentifier) {
-            case APPLICATION_CODELIST:
-                return resolveIntegrationRequestUrl(codelistProperties.getPublicUrl(), PATH_CODELIST_API, endPoint);
             case APPLICATION_DATAMODEL:
                 return resolveIntegrationRequestUrl(dataModelProperties.getPublicUrl(), PATH_DATAMODEL_API, endPoint);
-            case APPLICATION_TERMINOLOGY:
-                return resolveIntegrationRequestUrl(terminologyProperties.getPublicUrl(), PATH_TERMINOLOGY_API, endPoint);
-            case APPLICATION_COMMENTS:
-                return resolveIntegrationRequestUrl(commentsProperties.getPublicUrl(), PATH_COMMENTS_API, endPoint);
             default:
                 throw new YtiMessagingException(new ErrorModel(HttpStatus.NOT_ACCEPTABLE.value(), "Unknown applicationIdentifier: " + applicationIdentifier));
         }
@@ -223,11 +215,17 @@ public class IntegrationServiceImpl implements IntegrationService {
     private String resolveIntegrationRequestUrl(final String publicUrl,
                                                 final String applicationApiPath,
                                                 final String endPoint) {
-        return publicUrl + applicationApiPath + PATH_API + PATH_V1 + PATH_INTEGRATION + endPoint;
+        return publicUrl + applicationApiPath + PATH_V2 + PATH_INTEGRATION + endPoint;
     }
 
-    private String resolveIntegrationContainersRequestUrl(final String applicationIdentifier) {
-        return resolveIntegrationRequestUrl(applicationIdentifier, PATH_CONTAINERS_API);
+    private String resolveIntegrationContainersRequestUrl(final String applicationIdentifier, boolean fetctDateRanges) {
+    	if(fetctDateRanges) {
+    		return resolveIntegrationRequestUrl(applicationIdentifier, PATH_LATESTCONTAINERS_API);
+    	}
+    	else {
+    		return resolveIntegrationRequestUrl(applicationIdentifier, PATH_CONTAINERS_API);
+    	}
+        
     }
 
     private String resolveIntegrationResourcesRequestUrl(final String applicationIdentifier) {

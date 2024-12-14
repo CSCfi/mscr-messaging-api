@@ -1,5 +1,5 @@
 # Pull base image
-FROM yti-docker-java-base:corretto-11.0.22
+FROM yti-docker-java11-base:alpine
 
 # Deploy project
 ADD target/yti-messaging-api.jar ${deploy_dir}/yti-messaging-api.jar
